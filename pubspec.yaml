@@ -1,0 +1,73 @@
+name: ygo_order
+description: A new Flutter project.
+
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.17.0 <3.0.0" 
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  cupertino_icons: ^1.0.2
+  get: ^4.6.6
+  wifi_iot: ^0.3.19+1
+  permission_handler: ^11.3.1
+  esc_pos_utils: ^1.0.0
+  esc_pos_printer: ^4.0.0
+  fluttertoast: ^8.0.9
+  shared_preferences:
+  blue_thermal_printer: ^1.2.3
+  device_info_plus: ^9.1.2
+  zefyrka: ^1.6.0
+  # flutter_quill: ^9.3.0
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  
+  flutter_lints: ^2.0.0
+
+
+flutter:
+  assets:
+    - assets/ygo_order.png
+    - assets/images/
+  
+  
+  uses-material-design: true
+
+  
+  
+  
+  
+
+  
+  
+
+  
+  
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  #
+  
+  

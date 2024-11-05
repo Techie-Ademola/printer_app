@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "203603834161",
+    "project_id": "ygo_order-12d78",
+    "storage_bucket": "ygo_order-12d78.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:203603834161:android:f0862d150952a34a852c10",
+        "android_client_info": {
+          "package_name": "com.application.ygo_order"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUeInUkOL5Hdvl9dzcCn3d2CPmPXWAPBY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
