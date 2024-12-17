@@ -4,6 +4,7 @@ import 'package:ygo_order/media.dart';
 import 'package:zefyrka/zefyrka.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:esc_pos_printer/esc_pos_printer.dart';
@@ -179,6 +180,7 @@ class _PrinterSetupState extends State<PrinterSetup> {
     }
 
     Fluttertoast.showToast(msg: "Settings saved successfully!");
+    // ignore: use_build_context_synchronously
     Navigator.pop(context);
   }
 
@@ -405,13 +407,15 @@ class _PrinterSetupState extends State<PrinterSetup> {
     final int noOfCopies = int.tryParse(_noOfCopiesController.text) ?? 1;
     _textController.text = getFormattedText();
 
+    // Check if the text is empty after formatting
     if (_textController.text.isEmpty || _textController.text.length < 2) {
       Fluttertoast.showToast(msg: 'Kindly input your order to print!');
       return;
     }
 
-    if (_noOfCopiesController.text.isEmpty) {
-      Fluttertoast.showToast(msg: 'Kindly input amount of copies to print!');
+    // Check if the number of copies is valid
+    if (noOfCopies <= 0) {
+      Fluttertoast.showToast(msg: 'Please enter a valid number of copies.');
       return;
     }
 
@@ -431,8 +435,7 @@ class _PrinterSetupState extends State<PrinterSetup> {
     final profile = await CapabilityProfile.load();
 
     try {
-      if (_selectedPrinterType == 'WiFi' ||
-          _selectedPrinterType == 'Ethernet') {
+      if (_selectedPrinterType == 'WiFi' || _selectedPrinterType == 'Ethernet') {
         Fluttertoast.showToast(msg: 'Network printing in progress...');
         // Network printer setup
         final printer = NetworkPrinter(_selectedPaperSize, profile);
@@ -442,9 +445,6 @@ class _PrinterSetupState extends State<PrinterSetup> {
           _sendPrintData(printer, noOfCopies);
         } else {
           Fluttertoast.showToast(msg: 'Failed to connect to the printer.');
-          setState(() {
-            _isLoading = false; // End loading
-          });
         }
       } else if (_selectedPrinterType == 'Bluetooth') {
         // Bluetooth printer setup
@@ -452,11 +452,10 @@ class _PrinterSetupState extends State<PrinterSetup> {
       } else if (_selectedPrinterType == 'USB') {
         // USB printer setup
         await _usbPrint(noOfCopies);
+      } else {
+        Fluttertoast.showToast(msg: 'Invalid printer type selected.');
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false; // End loading
-      });
       String errorMessage = _getStructuredErrorMessage(e);
       Fluttertoast.showToast(msg: 'Printing failed: $errorMessage');
     } finally {
@@ -466,156 +465,129 @@ class _PrinterSetupState extends State<PrinterSetup> {
     }
   }
 
-// Modify _sendPrintData method for NetworkPrinter
-  void _sendPrintData(NetworkPrinter printer, noOfCopies) async {
+  void _sendPrintData(NetworkPrinter printer, int noOfCopies) async {
     try {
-      String formattedText = getFormattedText();
-      List<String> lines = formattedText.split('\n');
-
       for (int i = 0; i < noOfCopies; i++) {
         await Future.delayed(const Duration(seconds: 2), () {
-          for (String line in lines) {
-            // Determine alignment for each line based on leading spaces
-            PosAlign alignment = PosAlign.left;
-            if (line.startsWith('          ')) {
-              alignment = PosAlign.center;
-              line = line.substring(10); // Remove alignment spaces
-            } else if (line.startsWith('                    ')) {
-              alignment = PosAlign.right;
-              line = line.substring(20); // Remove alignment spaces
-            }
-
-            if (line.isNotEmpty) {
-              printer.text(
-                line,
-                styles: PosStyles(
-                  align: alignment,
-                  height: PosTextSize.size2,
-                  width: PosTextSize.size2,
-                ),
-              );
-            }
+          if (_textController.text.isNotEmpty) {
+            // Print text if available
+            printer.text(
+              _textController.text,
+              styles: const PosStyles(
+                align: PosAlign.left, // Adjust alignment as needed
+                height: PosTextSize.size2,
+                width: PosTextSize.size2,
+              ),
+              linesAfter: 1,
+            );
           }
-          printer.feed(1); // Add space between copies
           printer.cut();
         });
       }
+
       Fluttertoast.showToast(msg: 'Printed $noOfCopies copies successfully.');
     } catch (e) {
       Fluttertoast.showToast(msg: 'Error while printing: $e');
-      setState(() {
-        _isLoading = false;
-      });
     } finally {
+      // Ensure the printer is disconnected
       printer.disconnect();
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
-// Modify _bluetoothPrintViaBluetooth method
-  Future<void> _bluetoothPrintViaBluetooth(noOfCopies) async {
+  Future<void> _bluetoothPrintViaBluetooth(int noOfCopies) async {
     bool hasBluetoothPermission = await _checkBluetoothPermission();
 
     if (!hasBluetoothPermission) {
-      setState(() {
-        _isLoading = false;
-      });
+      Fluttertoast.showToast(msg: 'Bluetooth permission not granted.');
+      return; // Exit the function if permission is not granted
+    }
+
+    if (_textController.text.isEmpty) {
+      Fluttertoast.showToast(msg: 'Kindly input your order to print!');
       return;
     }
 
     try {
+      // Check if Bluetooth is connected
       bool? isConnected = await bluetooth.isConnected;
 
-      if (isConnected! || isConnected == true) {
+      // Proceed if connected
+      if (isConnected == true) {
         setState(() {
-          _isLoading = true;
+          _isLoading = true; // Start loading
         });
-
-        String formattedText = getFormattedText();
-        List<String> lines = formattedText.split('\n');
 
         for (int i = 0; i < noOfCopies; i++) {
           await Future.delayed(const Duration(seconds: 2), () {
-            for (String line in lines) {
-              // Determine alignment based on leading spaces
-              int align = 0; // left
-              if (line.startsWith('          ')) {
-                align = 1; // center
-                line = line.substring(10);
-              } else if (line.startsWith('                    ')) {
-                align = 2; // right
-                line = line.substring(20);
-              }
-
-              if (line.isNotEmpty) {
-                bluetooth.printCustom(line, 1, align);
-              }
+            if (_textController.text.isNotEmpty) {
+              // Print text if available
+              bluetooth.printCustom(_textController.text, 1, 1);
             }
-            bluetooth.printNewLine(); // Advance paper by one line
             bluetooth.paperCut();
           });
         }
-        Fluttertoast.showToast(
-            msg: 'Bluetooth Print successful: $noOfCopies copies.');
+
+        Fluttertoast.showToast(msg: 'Bluetooth Print successful: $noOfCopies copies.');
       } else {
         Fluttertoast.showToast(msg: 'Failed to connect via Bluetooth.');
       }
-    } catch (e) {
+    }  on PlatformException catch (e) {
+        if (e.code == 'bluetooth_unavailable') {
+          // Handle the error when Bluetooth is unavailable
+          Fluttertoast.showToast(
+              msg: 'Bluetooth is not available on this device.');
+        } else {
+          Fluttertoast.showToast(msg: 'Bluetooth error: ${e.message}');
+        }
+      } catch (e) {
       Fluttertoast.showToast(msg: 'Error: $e');
     } finally {
       setState(() {
-        _isLoading = false;
+        _isLoading = false; // End loading
       });
     }
   }
 
-// Modify _usbPrint method
-  Future<void> _usbPrint(noOfCopies) async {
+  Future<void> _usbPrint(int noOfCopies) async {
     bool hasUsbPermission = await _checkUsbPermission();
 
     if (!hasUsbPermission) {
-      setState(() {
-        _isLoading = false;
-      });
+      Fluttertoast.showToast(msg: 'USB permission not granted.');
+      return; // Exit if permission is not granted
+    }
+
+    if (_textController.text.isEmpty) {
+      Fluttertoast.showToast(msg: 'Kindly input your order to print!');
       return;
     }
 
     try {
       const platform = MethodChannel('com.application.ygo_order/usb_print');
+
+      // Check if a USB printer is connected
       final bool isUsbConnected = await platform.invokeMethod('isUsbConnected');
 
       if (!isUsbConnected) {
         Fluttertoast.showToast(msg: 'No USB printer connected.');
-        setState(() {
-          _isLoading = false;
-        });
         return;
       }
 
-      String formattedText = getFormattedText();
-      List<String> lines = formattedText.split('\n');
-
+      // Send print data to the USB printer (example: text)
       for (int i = 0; i < noOfCopies; i++) {
         await Future.delayed(const Duration(seconds: 2), () async {
-          for (String line in lines) {
-            if (line.isNotEmpty) {
-              await platform.invokeMethod('printText', {"text": line});
-            }
+          if (_textController.text.isNotEmpty) {
+            await platform.invokeMethod('printText', {"text": _textController.text});
           }
-          // Add a line feed and cut command if your platform method supports it
-          await platform.invokeMethod('printText', {"text": "\n\n\n\n\n"});
         });
       }
+
       Fluttertoast.showToast(msg: 'USB Print successful: $noOfCopies copies.');
     } catch (e) {
       String errorMessage = _getStructuredErrorMessage(e);
-      Fluttertoast.showToast(
-          msg: 'Error while printing via USB: $errorMessage');
+      Fluttertoast.showToast(msg: 'USB printing failed: $errorMessage');
     } finally {
       setState(() {
-        _isLoading = false;
+        _isLoading = false; // End loading
       });
     }
   }
@@ -629,27 +601,26 @@ class _PrinterSetupState extends State<PrinterSetup> {
     }
   }
 
-  // Add this method to convert Notus document to formatted text
   String getFormattedText() {
     final doc = _zefyrController.document;
     final buffer = StringBuffer();
 
     for (var node in doc.root.children) {
       if (node is LineNode) {
-        // Handle alignment
-        String alignment = 'left'; // default alignment
-        if (node.style.contains(NotusAttribute.heading)) {
-          var headingAttr = node.style.get(NotusAttribute.heading);
-          // Map heading levels to alignments (you can adjust this mapping)
-          if (headingAttr == NotusAttribute.heading.level1)
-            alignment = 'left';
-          else if (headingAttr == NotusAttribute.heading.level2)
+        // Handle alignment defaults
+        String alignment = 'left';
+
+        // Check for custom styles, like heading or alignment
+        if (node.style.contains(NotusAttribute.alignment)) {
+          var alignmentAttr = node.style.get(NotusAttribute.alignment);
+          if (alignmentAttr == NotusAttribute.alignment.center) {
             alignment = 'center';
-          else if (headingAttr == NotusAttribute.heading.level3)
+          } else if (alignmentAttr == NotusAttribute.alignment.end) {
             alignment = 'right';
+          }
         }
 
-        // Add spacing based on alignment
+        // Add spacing for alignment
         if (alignment == 'center') {
           buffer.write('          '); // Add spaces for center alignment
         } else if (alignment == 'right') {
@@ -661,9 +632,18 @@ class _PrinterSetupState extends State<PrinterSetup> {
         String text = node.toPlainText().trim();
         buffer.write(text);
         buffer.write('\n'); // Add newline after each line
+      } else if (node is BlockNode) {
+        // Handle blocks (e.g., lists, quotes, etc.)
+        for (var child in node.children) {
+          if (child is LineNode) {
+            buffer.write('- ${child.toPlainText().trim()}\n');
+          }
+        }
       }
     }
-
+    if (kDebugMode) {
+      print('buffer.toString(): ${buffer.toString()}');
+    }
     return buffer.toString();
   }
 
@@ -719,7 +699,7 @@ class _PrinterSetupState extends State<PrinterSetup> {
               )
             ],
           ),
-          body: Container(
+          body: SizedBox(
             height: height,
             width: width,
             child: Column(
@@ -829,10 +809,10 @@ class _PrinterSetupState extends State<PrinterSetup> {
                                       fontSize: 12,
                                     ),
                                     child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        minHeight: 100, // Minimum height
-                                        maxHeight:
-                                            200, // Limit expansion; editor scrolls after this height
+                                      constraints: const BoxConstraints(
+                                        minHeight: 120, // Minimum height
+                                        // maxHeight:
+                                        //     200, // Limit expansion; editor scrolls after this height
                                       ),
                                       child: ZefyrEditor(
                                         controller: _zefyrController,
